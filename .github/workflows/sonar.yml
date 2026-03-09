@@ -1,0 +1,44 @@
+name: SonarQube
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  setup:
+    runs-on: self-hosted
+    outputs:
+      has-sonar: ${{ steps.check.outputs.exists }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check for Sonar properties
+        id: check
+        run: |
+          if [ -f "sonar-project.properties" ]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+  sonar:
+    needs: setup
+    if: needs.setup.outputs.has-sonar == 'true'
+    runs-on: self-hosted
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set short SHA
+        run: echo "SHORT_SHA=${GITHUB_SHA::7}" >> $GITHUB_ENV
+
+      - name: SonarQube scan
+        uses: sonarsource/sonarqube-scan-action@master
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+        with:
+          args: >
+            -Dsonar.projectVersion=prod-${{ env.SHORT_SHA }}
